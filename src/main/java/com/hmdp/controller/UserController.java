@@ -68,9 +68,7 @@ public class UserController {
     public Result me(){
         // 获取当前登录的用户并返回
         UserDTO userDTO = UserHolder.getUser();
-        User user = new User();
-        BeanUtils.copyProperties(userDTO, user);
-        return Result.ok(user);
+        return Result.ok(userDTO);
     }
 
     @GetMapping("/info/{id}")
