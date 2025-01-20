@@ -17,8 +17,7 @@ import javax.annotation.Resource;
 
 import java.util.concurrent.TimeUnit;
 
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
-import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
+import static com.hmdp.utils.RedisConstants.*;
 
 
 @Service
@@ -47,11 +46,20 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return Result.ok(shop);
         }
 
+        // 判断命中的是否是空值
+        if(shopJson != null){   // 命中的是空字符串
+            // 返回一个错误信息
+            return Result.fail("店铺信息不存在！");
+        }
+
         // 3.若redis缓存中不存在商铺信息，则在数据库中查询商铺信息，并添加到redis缓存中
         Shop shop = getById(id);    // 调用 MyBatis Plus 的api
 
         // 4.不存在，返回错误
         if (shop == null) {
+            // 将空值写入redis
+            stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
+            // 返回错误信息
             return Result.fail("店铺不存在！");
         }
 
