@@ -64,7 +64,11 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         // 5.扣减库存
         boolean success = seckillVoucherService.update()
                 .setSql("stock = stock - 1")
-                .eq("voucher_id", voucherId).update();
+                // 使用乐观锁，避免中间有线程切换导致的数据安全问题
+                // 一：仅在库存的值等于之前查询到的值时更新，失败率过高
+                // 二：仅在库存的值大于0时更新 【注意MySQL数据库本身的update操作有锁，所以不会有问题】
+                .eq("voucher_id", voucherId).gt("stock", 0)
+                .update();
 
         if (!success) {
             // 扣减失败，一般是由于库存不足
