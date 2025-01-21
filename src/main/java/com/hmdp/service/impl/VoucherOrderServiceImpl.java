@@ -8,8 +8,10 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private RedisIdWorker redisIdWorker;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 秒杀券下单
@@ -62,12 +67,29 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
 
         Long userId = UserHolder.getUser().getId();
-        synchronized (userId.toString().intern()) {
+
+        // 创建锁对象
+        // 锁的名字为订单业务和用户id，表示锁作用在订单业务中的用户级别
+        SimpleRedisLock lock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        // 获取锁
+        boolean isLock = lock.tryLock(1200);
+        // 判断是否获取锁成功
+        if (!isLock) {
+            // 获取锁失败，返回错误信息或重试
+            return Result.fail("不允许重复下单");
+        }
+
+        try {
             // 需要给createVoucherOrder函数上锁，因为事务要在函数执行完之后才执行
             // 在函数中上锁可能导致函数执行完后有线程切换，发生线程安全问题
             // 但是事务的生效在底层是使用代理对象实现的，而此处如果调用[this.createVoucherOrder]是非代理对象，没有事务功能
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();   // 获取当前对象的代理对象
             return proxy.createVoucherOrder(voucherId);     // 调用代理对象的方法[createVoucherOrder]
+        } catch (IllegalStateException e) {
+            throw new RuntimeException(e);
+        } finally {
+            // 释放锁
+            lock.unlock();
         }
     }
 
