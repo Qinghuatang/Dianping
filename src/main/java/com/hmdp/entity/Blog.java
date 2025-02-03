@@ -43,7 +43,7 @@ public class Blog implements Serializable {
     /**
      * 用户图标
      */
-    @TableField(exist = false)
+    @TableField(exist = false)  // @TableField注解表示当前属性不属于 "tb_blog" 表的字段
     private String icon;
     /**
      * 用户姓名
